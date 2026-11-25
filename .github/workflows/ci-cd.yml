@@ -157,14 +157,21 @@ jobs:
         run: aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
       - name: Verificar el despliegue
         run: |
-          STATE=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
-            --query 'services[0].deployments[?status==`PRIMARY`].rolloutState | [0]' --output text)
           DEPLOYED=$(aws ecs describe-task-definition --task-definition "${{ steps.register.outputs.arn }}" \
             --query 'taskDefinition.containerDefinitions[?name==`app`].image | [0]' --output text)
-          echo "Estado del despliegue: $STATE"
-          echo "Imagen desplegada:     $DEPLOYED"
-          test "$STATE" = "COMPLETED"
+          echo "Imagen desplegada: $DEPLOYED"
           test "$DEPLOYED" = "$IMAGE"
+          for i in $(seq 1 40); do
+            STATE=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+              --query 'services[0].deployments[?status==`PRIMARY`].rolloutState | [0]' --output text)
+            echo "[$i] Estado del despliegue: $STATE"
+            case "$STATE" in
+              COMPLETED) exit 0 ;;
+              FAILED) echo "ECS revirtio el despliegue (circuit breaker)"; exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "Tiempo agotado esperando COMPLETED"; exit 1
       - name: Limpiar archivo con credenciales
         if: always()
         run: rm -f task-definition.rendered.json
