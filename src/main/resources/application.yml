@@ -19,7 +19,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       probes:
@@ -27,6 +27,10 @@ management:
   info:
     env:
       enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      commit: ${GIT_SHA:unknown}
 
 # Trazabilidad: expone el commit desplegado en /actuator/info
 info:
