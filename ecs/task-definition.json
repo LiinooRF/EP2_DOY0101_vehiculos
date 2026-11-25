@@ -1,0 +1,65 @@
+{
+  "family": "ms-vehiculos",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "1024",
+  "memory": "2048",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "executionRoleArn": "${LAB_ROLE_ARN}",
+  "taskRoleArn": "${LAB_ROLE_ARN}",
+  "containerDefinitions": [
+    {
+      "name": "db",
+      "image": "mysql:8.4",
+      "essential": true,
+      "memory": 512,
+      "command": ["--performance-schema=OFF", "--innodb-buffer-pool-size=128M", "--max-connections=50", "--disable-log-bin"],
+      "environment": [
+        { "name": "MYSQL_DATABASE", "value": "vehiculos" },
+        { "name": "MYSQL_USER", "value": "vehiculos_user" },
+        { "name": "MYSQL_PASSWORD", "value": "${DB_PASSWORD}" },
+        { "name": "MYSQL_ROOT_PASSWORD", "value": "${DB_ROOT_PASSWORD}" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$MYSQL_ROOT_PASSWORD\" --silent"],
+        "interval": 10, "timeout": 5, "retries": 10, "startPeriod": 30
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ms-vehiculos",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    },
+    {
+      "name": "app",
+      "image": "${IMAGE}",
+      "essential": true,
+      "portMappings": [{ "containerPort": 9004, "protocol": "tcp", "name": "app-http", "appProtocol": "http" }],
+      "dependsOn": [{ "containerName": "db", "condition": "HEALTHY" }],
+      "environment": [
+        { "name": "DB_URL", "value": "jdbc:mysql://127.0.0.1:3306/vehiculos?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true" },
+        { "name": "DB_USERNAME", "value": "vehiculos_user" },
+        { "name": "DB_PASSWORD", "value": "${DB_PASSWORD}" },
+        { "name": "SERVER_PORT", "value": "9004" },
+        { "name": "JAVA_OPTS", "value": "-Xmx512m -Xss512k -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:9004/actuator/health | grep -q UP"],
+        "interval": 15, "timeout": 5, "retries": 5, "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ms-vehiculos",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}
