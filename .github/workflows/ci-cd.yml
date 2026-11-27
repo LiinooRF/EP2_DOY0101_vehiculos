@@ -202,11 +202,12 @@ jobs:
               aws ec2 authorize-security-group-ingress --group-id "$SG" \
                 --protocol tcp --port 9004 --cidr 0.0.0.0/0
             fi
-            mapfile -t ARR <<< "$SUBNETS"
+            SUBNET_LIST=$(aws ec2 describe-subnets --filters Name=default-for-az,Values=true \
+              --query 'Subnets[0:2].[SubnetId]' --output text | sed 's/\t/","/g' | sed 's/^/"/' | sed 's/$/"/')
             aws ecs create-service --cluster "$ECS_CLUSTER" --service-name "$ECS_SERVICE" \
               --task-definition "${{ steps.register.outputs.arn }}" --launch-type FARGATE \
               --desired-count 1 \
-              --network-configuration "awsvpcConfiguration={subnets=[${ARR[0]},${ARR[1]}],securityGroups=[$SG],assignPublicIp=ENABLED}" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_LIST],securityGroups=[$SG],assignPublicIp=ENABLED}" \
               --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" > /dev/null
           else
             echo "El servicio existe: actualizando task definition"
