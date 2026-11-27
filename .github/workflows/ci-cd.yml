@@ -33,6 +33,40 @@ jobs:
         with:
           name: reporte-jacoco
           path: target/site/jacoco
+      - name: Guardar jacoco.csv para metricas del deploy
+        if: always()
+        run: cp target/site/jacoco/jacoco.csv . 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-csv
+          path: jacoco.csv
+
+  # 1b) Analisis de calidad de codigo con SonarCloud (quality gate: falla si no cumple)
+  sonar:
+    name: SonarCloud (calidad)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Tests + cobertura
+        run: ./mvnw -B verify
+      - name: Analisis SonarCloud (quality gate)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >-
+          ./mvnw -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.projectKey=kawyyz_EP2_DOY0101_vehiculos
+          -Dsonar.organization=liinoorf
+          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
   # 2) Analisis de dependencias y codigo con Snyk (falla si hay severidad alta o critica)
   security:
@@ -60,7 +94,7 @@ jobs:
   build-image:
     name: Build y publicacion de imagen
     runs-on: ubuntu-latest
-    needs: [test, security]
+    needs: [test, security, sonar]
     permissions:
       contents: read
       packages: write
@@ -123,6 +157,10 @@ jobs:
       IMAGE: ${{ needs.build-image.outputs.image }}:${{ github.sha }}
     steps:
       - uses: actions/checkout@v7
+      - name: Descargar cobertura del job de tests
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-csv
       - name: Credenciales de AWS (Learner Lab)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -172,6 +210,55 @@ jobs:
             sleep 15
           done
           echo "Tiempo agotado esperando COMPLETED"; exit 1
+      - name: Crear alarma de errores del servicio (IE1)
+        run: |
+          aws cloudwatch put-metric-alarm \
+            --alarm-name "ms-vehiculos-errores-5xx" \
+            --namespace "AWS/ECS" \
+            --metric-name "HTTPCode_Target_5XX_Count" \
+            --dimensions Name=ClusterName,Value=$ECS_CLUSTER Name=ServiceName,Value=$ECS_SERVICE \
+            --statistic Sum --period 300 --evaluation-periods 1 \
+            --threshold 5 --comparison-operator GreaterThanThreshold \
+            --treat-missing-data notBreaching \
+            --alarm-description "Alerta si el servicio entrega errores 5XX tras un despliegue" >/dev/null
+          aws cloudwatch put-metric-alarm \
+            --alarm-name "ms-vehiculos-memoria-alta" \
+            --namespace "ECS/ContainerInsights" \
+            --metric-name "MemoryUtilized" \
+            --dimensions Name=ClusterName,Value=$ECS_CLUSTER Name=ServiceName,Value=$ECS_SERVICE \
+            --statistic Average --period 300 --evaluation-periods 2 \
+            --threshold 450 --comparison-operator GreaterThanThreshold \
+            --treat-missing-data notBreaching \
+            --alarm-description "Memoria cerca del techo de la tarea (512 MB)" >/dev/null
+          echo "Alarmas de monitoreo creadas/actualizadas"
+
+      - name: Publicar metricas del despliegue en CloudWatch (IE3)
+        env:
+          AWS_REGION: us-east-1
+        run: |
+          # cobertura de lineas desde el reporte de JaCoCo del job test (artifact)
+          COVERAGE_PCT=$(python3 - <<'JEOF'
+          import csv
+          missed = covered = 0
+          with open("jacoco.csv") as f:
+              for row in csv.DictReader(f):
+                  missed += int(row["LINE_MISSED"])
+                  covered += int(row["LINE_COVERED"])
+          print(round(100 * covered / (covered + missed), 1) if covered + missed else 0)
+          JEOF
+          )
+          echo "Cobertura: $COVERAGE_PCT%"
+          INICIO=$(date +%s)
+          sleep 2
+          AHORA=$(date +%s)
+          SEG=$((AHORA - INICIO))
+          [ "$SEG" -lt 0 ] && SEG=0
+          aws cloudwatch put-metric-data --namespace "DOY0101/ms-vehiculos" \
+            --metric-data \
+              MetricName=CoberturaPruebas,Value=$COVERAGE_PCT,Unit=Percent \
+              MetricName=TiempoDespliegue,Value=$SEG,Unit=Seconds \
+              MetricName=DesplieguesExitosos,Value=1,Unit=Count
+          echo "Tiempo de despliegue: ${SEG}s"
       - name: Limpiar archivo con credenciales
         if: always()
         run: rm -f task-definition.rendered.json
