@@ -83,13 +83,6 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- utilidad de texto para normalizar patentes (pendiente de revisar version) -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-text</artifactId>
-            <version>1.5</version>
-        </dependency>
-
         <!-- Swagger UI -->
         <dependency>
             <groupId>org.springdoc</groupId>
