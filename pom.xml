@@ -103,6 +103,13 @@
                 </configuration>
             </plugin>
 
+            <!-- Analisis de calidad: SonarCloud (el token va por env, nunca en el pom) -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>5.1.0.4751</version>
+            </plugin>
+
             <!-- Cobertura: el build falla si baja del minimo definido (politica de calidad) -->
             <plugin>
                 <groupId>org.jacoco</groupId>
