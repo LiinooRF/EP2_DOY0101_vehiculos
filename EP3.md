@@ -47,6 +47,12 @@ del lab) y hace:
 
 ![Servicio ms-vehiculos-svc en 1/1](docs/ep3/ecs-servicio.png)
 
+Y el swagger del microservicio respondiendo desde la IP publica de la tarea: en la misma
+captura se ve la consola de ECS mostrando la misma IP y la imagen de GHCR con el SHA del
+commit que esta corriendo.
+
+![Swagger del microservicio en Fargate](docs/ep3/swagger-en-fargate.png)
+
 Porque el servicio se crea solo, el pipeline funciona igual en un lab recien limpiado:
 no hay paso manual de infraestructura. La imagen viene de GHCR, el servidor nunca compila.
 
