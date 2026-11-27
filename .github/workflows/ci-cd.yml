@@ -210,6 +210,28 @@ jobs:
             sleep 15
           done
           echo "Tiempo agotado esperando COMPLETED"; exit 1
+      - name: Crear alarma de errores del servicio (IE1)
+        run: |
+          aws cloudwatch put-metric-alarm \
+            --alarm-name "ms-vehiculos-errores-5xx" \
+            --namespace "AWS/ECS" \
+            --metric-name "HTTPCode_Target_5XX_Count" \
+            --dimensions Name=ClusterName,Value=$ECS_CLUSTER Name=ServiceName,Value=$ECS_SERVICE \
+            --statistic Sum --period 300 --evaluation-periods 1 \
+            --threshold 5 --comparison-operator GreaterThanThreshold \
+            --treat-missing-data notBreaching \
+            --alarm-description "Alerta si el servicio entrega errores 5XX tras un despliegue" >/dev/null
+          aws cloudwatch put-metric-alarm \
+            --alarm-name "ms-vehiculos-memoria-alta" \
+            --namespace "ECS/ContainerInsights" \
+            --metric-name "MemoryUtilized" \
+            --dimensions Name=ClusterName,Value=$ECS_CLUSTER Name=ServiceName,Value=$ECS_SERVICE \
+            --statistic Average --period 300 --evaluation-periods 2 \
+            --threshold 450 --comparison-operator GreaterThanThreshold \
+            --treat-missing-data notBreaching \
+            --alarm-description "Memoria cerca del techo de la tarea (512 MB)" >/dev/null
+          echo "Alarmas de monitoreo creadas/actualizadas"
+
       - name: Publicar metricas del despliegue en CloudWatch (IE3)
         env:
           AWS_REGION: us-east-1
