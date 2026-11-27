@@ -98,6 +98,23 @@ Resumen de las puertas que tiene el pipeline hoy:
 | Branch protection | ruleset de main | merges sin los checks en verde |
 | Circuit breaker ECS | job deploy-ecs | despliegues que no pasan el healthcheck (revierte solo) |
 
+## Demostracion: el pipeline se detiene ante una falla critica
+
+Se agrego commons-text 1.5 (dependencia con CVE alto conocido) en un PR. Snyk lo detecto
+en el job de seguridad y el pipeline se detuvo: el build y el deploy ni siquiera comenzaron.
+
+El hallazgo: `Arbitrary Code Execution [HIGH]` en `commons-text@1.5`
+(SNYK-JAVA-ORGAPACHECOMMONS-3043138), sobre 115 dependencias analizadas.
+
+![Pipeline bloqueado por Snyk](docs/ep3/ie6-pipeline-bloqueado.png)
+
+![Hallazgo en el log de Snyk](docs/ep3/ie6-snyk-hallazgo.png)
+
+El revert devolvio el pom al estado anterior y el mismo PR quedo con todos los checks en
+verde: la puerta de seguridad funciona y ademas permite recuperarse rapido.
+
+![Checks en verde tras el revert](docs/ep3/ie6-revert-verde.png)
+
 ## Como lo usamos para decidir
 
 Un ejemplo concreto de este sprint: el hallazgo HIGH de Snyk por Spring Boot 4.1.2 salio en
