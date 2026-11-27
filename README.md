@@ -1,7 +1,8 @@
 # ms-vehiculos
 
 Microservicio de vehículos con su pipeline de CI/CD en GitHub Actions.
-Evaluación Parcial 2 de DOY0101 (Ingeniería DevOps), Duoc UC.
+Evaluaciones Parciales 2 y 3 de DOY0101 (Ingeniería DevOps), Duoc UC.
+La documentación de la EP3 (monitoreo, SonarCloud y despliegue en ECS) está en [EP3.md](EP3.md).
 
 Integrantes: Lino Requena y Arion Ruiz-Tagle.
 
